@@ -14,8 +14,8 @@ byte sensorPin       = 2;
 
 // The hall-effect flow sensor outputs approximately 4.5 pulses per second per
 // litre/minute of flow.
-// NOTE - Promising values have been: 20(high)
-float calibrationFactor = 19;
+// NOTE - Promising values have been: 20's(in-range)
+float calibrationFactor = 21.5;
 
 volatile byte pulseCount;
 
