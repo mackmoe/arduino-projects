@@ -49,13 +49,13 @@ Below is the basic circuit diagram for connecting the water flow sensor to the A
 
 ## Usage
 
-- Ensure that the **water flow sensor model** is correct and is properly connected to the water supply.
+- Ensure that the water flow sensor model is the same one here and is properly connected to the water supply.
 - Start the Arduino, and the flow rate should be displayed on the LCD or Serial Monitor.
 - Use the data to monitor water usage, automate systems, or trigger alerts.
 - The sensor has a 7mm coupling on both sides and is therefore easy to connect to a 6mm hose.
 - The output of the sensor gives 98 pulses per second with a duty cycle of approximately 50% for each liter of fluid passing through per minute: Q [L/min] = fpulse [Hz]/98.
 
-### Specifications for the water flow sensor model
+### Specifications for water flow sensor model FL-S401A 
 
 - Voltage range: 5-24V
 - Pulse frequency per L/min: 98Hz
@@ -64,7 +64,7 @@ Below is the basic circuit diagram for connecting the water flow sensor to the A
 - Working temperature: -25-80°C
 - Duty cycle pulse: 50% +-10%
 - Voltage pulse (with 5V as input voltage): 4.7V
-- Adjust the next piece of code from `float calibrationFactor = 4.5;` to `float calibrationFactor = 98;` 
+- Adjust the piece of code from `float calibrationFactor = 4.5;` to `float calibrationFactor = 98;` 
 
 ## Troubleshooting
 
