@@ -55,7 +55,7 @@ Below is the basic circuit diagram for connecting the water flow sensor to the A
 - The sensor has a 7mm coupling on both sides and is therefore easy to connect to a 6mm hose.
 - The output of the sensor gives 98 pulses per second with a duty cycle of approximately 50% for each liter of fluid passing through per minute: Q [L/min] = fpulse [Hz]/98.
 
-### Specifications for water flow sensor model FL-S401A 
+### [Specifications for water flow sensor model FL-S401A](https://www.tinytronics.nl/en/sensors/liquid/yf-s401-water-flow-sensor)
 
 - Voltage range: 5-24V
 - Pulse frequency per L/min: 98Hz

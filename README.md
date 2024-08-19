@@ -1,10 +1,8 @@
-Here's a general template for a `README.md` file for any Git project. You can adjust the content based on your project's specifics:
-
 ---
 
-# Project Name
+# Arduino Water_Flow_Sensor
 
-A brief description of what your project does and its purpose.
+Tweaked some scripts for initial testing and running of a water flow sensor using a LetPot and Arduino.
 
 ## Table of Contents
 
@@ -85,5 +83,3 @@ If you have any questions or suggestions, feel free to reach out:
 - Project Link - https://github.com/yourusername/projectname
 
 ---
-
-This template covers the basics of a `README.md` file and should be a good starting point for any project.
