@@ -23,11 +23,7 @@ The water flow sensor works by measuring the rate of water passing through the s
 ## Components Required
 
 - Arduino (e.g., Uno, Nano, etc.)
-- Water Flow Sensor (e.g., YF-S201)
-- 16x2 LCD Display (optional)
-- 10kΩ Potentiometer (for LCD contrast adjustment)
-- 220Ω Resistor
-- Breadboard and Jumper Wires
+- Water Flow Sensor Model FL-S401A 
 - Power Supply (e.g., 9V battery or USB power)
 
 ## Circuit Diagram
@@ -44,66 +40,6 @@ Below is the basic circuit diagram for connecting the water flow sensor to the A
 +-------------------+
 ```
 
-If you're using an LCD, connect it to the Arduino as follows:
-
-```
-LCD Pin  ->  Arduino Pin
--------------------------
-VSS      ->  GND
-VDD      ->  +5V
-VO       ->  Potentiometer Center Pin
-RS       ->  Digital Pin 7
-RW       ->  GND
-E        ->  Digital Pin 8
-D4       ->  Digital Pin 9
-D5       ->  Digital Pin 10
-D6       ->  Digital Pin 11
-D7       ->  Digital Pin 12
-A/K      ->  +5V/GND (with a resistor in series)
-```
-
-## Arduino Code
-
-Here’s a sample Arduino code to get you started:
-
-```cpp
-#include <LiquidCrystal.h>
-
-LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
-const int sensorPin = 2;
-volatile int pulseCount = 0;
-
-void setup() {
-  pinMode(sensorPin, INPUT);
-  digitalWrite(sensorPin, HIGH);
-  attachInterrupt(digitalPinToInterrupt(sensorPin), countPulse, RISING);
-
-  lcd.begin(16, 2);
-  lcd.print("Flow Rate:");
-  Serial.begin(9600);
-}
-
-void loop() {
-  pulseCount = 0;
-  interrupts();
-  delay(1000);
-  noInterrupts();
-
-  float flowRate = pulseCount / 7.5; // Flow rate in liters/min
-  lcd.setCursor(0, 1);
-  lcd.print(flowRate);
-  lcd.print(" L/min");
-
-  Serial.print("Flow Rate: ");
-  Serial.print(flowRate);
-  Serial.println(" L/min");
-}
-
-void countPulse() {
-  pulseCount++;
-}
-```
-
 ## Installation
 
 1. Clone this repository or download the ZIP file and extract it.
@@ -113,20 +49,32 @@ void countPulse() {
 
 ## Usage
 
-- Ensure that the water flow sensor is properly connected to the water supply.
+- Ensure that the **water flow sensor model** is correct and is properly connected to the water supply.
 - Start the Arduino, and the flow rate should be displayed on the LCD or Serial Monitor.
 - Use the data to monitor water usage, automate systems, or trigger alerts.
+- The sensor has a 7mm coupling on both sides and is therefore easy to connect to a 6mm hose.
+- The output of the sensor gives 98 pulses per second with a duty cycle of approximately 50% for each liter of fluid passing through per minute: Q [L/min] = fpulse [Hz]/98.
+
+### Specifications for the water flow sensor model
+
+- Voltage range: 5-24V
+- Pulse frequency per L/min: 98Hz
+- Measuring range: 0.3-6L/min (with an accuracy of +-10%)
+- Maximum water pressure: 8bar
+- Working temperature: -25-80°C
+- Duty cycle pulse: 50% +-10%
+- Voltage pulse (with 5V as input voltage): 4.7V
+- Adjust the next piece of code from `float calibrationFactor = 4.5;` to `float calibrationFactor = 98;` 
 
 ## Troubleshooting
 
-- **No output on LCD:** Check the connections and adjust the potentiometer for contrast.
 - **Incorrect flow rate:** Verify that the sensor is properly calibrated and connected.
 - **No data on Serial Monitor:** Ensure that the correct COM port is selected and the baud rate is set to 9600.
 
 ## Future Improvements
 
 - Add a data logger to save water usage over time.
-- Integrate with a home automation system to automatically control water flow.
+- Daemonize a Serial Plotter.
 - Implement wireless communication to send data to a remote server.
 
 ## License
@@ -134,5 +82,3 @@ void countPulse() {
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-
-Feel free to customize this template according to your project's specific requirements.
