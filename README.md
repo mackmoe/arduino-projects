@@ -1,8 +1,8 @@
 ---
 
-# Arduino Water_Flow_Sensor
+# Arduino Projects
 
-Tweaked some scripts for initial testing and running of a water flow sensor using a LetPot and Arduino.
+Tweaked some scripts for initial testing and running of some different types of water sensors using a bucket, a LetPot and an Arduino.
 
 ## Table of Contents
 
