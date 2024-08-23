@@ -9,14 +9,15 @@ byte sensorInterrupt = 0;  // value set to 0 which equals digital pin 2 - (makes
 byte sensorPin       = 2;
 
 // This flow sensor model outputs approximately 5880 pulses, but is that over a minute otherwise over a second its 5880/60 = 98 Hz square wave which has a period of 1/98 = 10.2 milliseconds.
-float calibrationFactor = 18.25;
+float calibrationFactor = 48.95;
 
 volatile byte pulseCount;
 
 
 float flowRate;
+float totalMilliLitres;
 unsigned int flowMilliLitres; //The conversion "unsigned" int/long won't store negative numbers and are helpful with interrupt service routines sections of code that are associated with interrupts.
-unsigned long totalMilliLitres;
+// unsigned long totalMilliLitres;
 
 unsigned long oldTime;
 
@@ -70,7 +71,7 @@ void loop() {
     // Divide the flow rate in litres/minute by 60 to determine how many litres have
     // passed through the sensor in this 1 second interval, then multiply by 1000 to
     // convert to millilitres.
-    flowMilliLitres = (flowRate / 60) * 1000;
+    flowMilliLitres = (flowRate / 65.0) * 1000;
     
     // Add the millilitres passed in this second to the cumulative total
     totalMilliLitres += flowMilliLitres;
@@ -78,16 +79,16 @@ void loop() {
     unsigned int frac;
 
     // Print the flow rate for this second in litres / minute
-    Serial.print("Water Flow Rate: ");
-    Serial.print(int(flowRate));  // Print the integer part of the variable
-    Serial.println("L/min");
+    Serial.print("Water Flow Rate: ~ ");
+    Serial.print(int(flowMilliLitres * 70.5));  // Print the integer part of the variable
+    Serial.println("ml/min");
 
     // Print the cumulative total of litres flowed since starting
     Serial.print("Water Output: ");
     Serial.print(totalMilliLitres);
     Serial.println("mL");
-	  Serial.print(" Total Liters of Water Used: ");
-	  Serial.println(totalMilliLitres/1000);
+	  Serial.print("  Total Liters of Water Used: ");
+	  Serial.println(totalMilliLitres/1000.0);
 
     // Reset the pulse counter so we can start incrementing again
     pulseCount = 0;

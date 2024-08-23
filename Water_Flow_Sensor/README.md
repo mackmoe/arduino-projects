@@ -64,7 +64,7 @@ Below is the basic circuit diagram for connecting the water flow sensor to the A
 - Working temperature: -25-80°C
 - Duty cycle pulse: 50% +-10%
 - Voltage pulse (with 5V as input voltage): 4.7V
-- Adjust the piece of code from `float calibrationFactor = 4.5;` to `float calibrationFactor = 98;` 
+- Adjust the piece of code from `float calibrationFactor = 4.5;` to `float calibrationFactor = 48;` 
 
 ## Troubleshooting
 
