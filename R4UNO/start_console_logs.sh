@@ -29,6 +29,8 @@ function screen_session_magic() {
 	screen -ls
 	if [ $? -eq 0 ];then
 	  screen -wipe
+	else
+	  echo "Starting Console Log"	
         fi      
 }
 

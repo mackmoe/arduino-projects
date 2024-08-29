@@ -79,16 +79,17 @@ void loop() {
     unsigned int frac;
 
     // Print the flow rate for this second in litres / minute
-    Serial.print("Water Flow Rate: ~ ");
+    Serial.print("Current Flow Rate: ~ ");
     Serial.print(int(flowMilliLitres * 70.5));  // Print the integer part of the variable
     Serial.println("ml/min");
 
     // Print the cumulative total of litres flowed since starting
-    Serial.print("Water Output: ");
+    Serial.print("Water Output This Session: ");
     Serial.print(totalMilliLitres);
     Serial.println("mL");
-	  Serial.print("  Total Liters of Water Used: ");
-	  Serial.println(totalMilliLitres/1000.0);
+	  Serial.print("  Total Water Used: ");
+	  Serial.print(totalMilliLitres/1000.0);
+	  Serial.println(" Litres");
 
     // Reset the pulse counter so we can start incrementing again
     pulseCount = 0;
