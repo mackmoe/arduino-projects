@@ -1,3 +1,4 @@
 *.json
 .vscode
+*arduino_secrets.h
 Water_Flow_Sensor/Water_Flow_Sensor.ino
