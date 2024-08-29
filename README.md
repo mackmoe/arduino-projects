@@ -1,8 +1,8 @@
 ---
 
-# Arduino UNO Projects
+# Arduino Projects
 
-Tweaked some scripts for initial testing and running of some different types of water sensors using a bucket, a LetPot and an Arduino UNO.
+Tweaked some scripts for initial testing and running of some different types of water sensors using a bucket, a LetPot and an Arduino.
 
 ## Table of Contents
 

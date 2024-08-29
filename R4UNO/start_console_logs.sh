@@ -4,7 +4,7 @@
 
 function initialize_console()
   {
-    pushd /home/monash/Git/arduino-projects/Water_Flow_Sensor
+    pushd /home/$USER/Git/arduino-projects/R4UNO/Water_Flow_Sensor
     arduino-cli compile -t -b arduino:avr:uno -p /dev/ttyACM0 ./Water_Flow_Console_Log.ino --upload
     popd
 }

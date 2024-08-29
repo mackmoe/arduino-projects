@@ -2,15 +2,11 @@
 
 # set -x 
 
-function stop_bkgd_screen()
-  {
-    SCREENPID=$(ps -ef | grep -i [s]creen)
-    if [[ $SCREENPID ]]; then
-      rm -rf /run/screen/S-"$USER"/* && \
-      screen -wipe '*'
-    else
-      echo -e "No screens are running in the background"
-    fi
+function screen_session_magic() {
+	screen -ls
+	if [ $? -eq 0 ];then
+	  screen -wipe
+        fi      
 }
 
 function stop_water_monitor_console()
@@ -24,5 +20,5 @@ function stop_water_monitor_console()
     fi
 }
 
-stop_bkgd_screen
 stop_water_monitor_console
+screen_session_magic
