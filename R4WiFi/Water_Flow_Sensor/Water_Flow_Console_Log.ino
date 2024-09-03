@@ -1,3 +1,16 @@
+//For wifi libs
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+
+#include "arduino_secrets.h"
+// Replace with your network credentials
+const char* ssid = SECRET_SSID;
+const char* password = SECRET_PASS;
+
+// Create a web server on port 80
+WebServer server(80);
+
 //face drip
 #include "Arduino_LED_Matrix.h"
 #include <stdint.h>
