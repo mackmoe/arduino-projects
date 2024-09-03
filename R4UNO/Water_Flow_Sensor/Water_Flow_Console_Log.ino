@@ -87,7 +87,7 @@ void loop() {
     Serial.print("Water Output This Session: ");
     Serial.print(totalMilliLitres);
     Serial.println("mL");
-	  Serial.print("  Total Water Used: ");
+	  Serial.print("Total Water Used: ");
 	  Serial.print(totalMilliLitres/1000.0);
 	  Serial.println(" Litres");
 
