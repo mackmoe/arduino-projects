@@ -1,8 +1,7 @@
-//face drip LIB
-#include <stdint.h>
+//face drip LIBs, grafx first!
 #include <ArduinoGraphics.h>
 #include <Arduino_LED_Matrix.h>
-ArduinoLEDMatrix matrix;
+ArduinoLEDMatrix matrix; 
 
 
 //wireless libs
@@ -59,7 +58,6 @@ void setup() {
 }
 
 void faceDrip() {
-  // Make it scroll!
   matrix.beginDraw();
 
   matrix.stroke(0xFFFFFFFF);
@@ -71,12 +69,11 @@ void faceDrip() {
   matrix.beginText(0, 1, 0xFFFFFF);
   matrix.println(text);
   matrix.endText(SCROLL_LEFT);
-
   matrix.endDraw();
 }
 
 void loop() {
-  faceDrip();
+  faceDrip(); // Makezit scroll!
   // Time interval for calculation (e.g., 1 second)
   unsigned long currentTime = millis();
 
@@ -124,16 +121,26 @@ void loop() {
     if (request.indexOf("/status") != -1) {
       // Send flow data as a response
       client.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n");
-      client.print(flowRate);
+      client.print("Approx current Flow Rate: ");
+      client.print(int(flowRate * 70.5));
+      client.println("mL/min");
+      client.print("Water Output This Session: ");
+      client.print(flowMilliLitres);
+      client.println("mL");
+      client.print("Total Water Used: ");
+      client.print(totalMilliLitres);
+      client.println(" Litres");
     } else {
       // Send the web page as a response
       client.print("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
-      client.print("<html><body><h1>Water Flow Monitor</h1>");
-      client.print(
-        "<br><p>Current Flow Rate: <span id='flowRate'>0</span> mL/s</p></br>"
+      client.print("<html><head><body>");
+      client.print("<h1>Jack'd Water Flow Monitor Refresh'd Output</h1>");
+      client.print("<p>Current Flow Rate: <span id='flowRate'>0</span> mL/s</p>"
+      "<p>Water Output This Session: <span id='flowMilliLitres'>0</span> mL/s</p>"
+      "<p>Total Water Used: <span id='totalMilliLitres'>0</span> L</p>"
       );
-      client.print("<script>setInterval(function() { fetch('/status').then(response => response.text()).then(data => { document.getElementById('flowRate').innerText = data; }); }, 1000);</script>");
-      client.print("</body></html>");
+      client.print("<script>setInterval(function() { fetch('/status').then(response => response.text()).then(data => { document.getElementById('flowRate','flowMilliLitres','totalMilliLitres').innerText = data; }); }, 1000);</script>");
+      client.print("</body></head></html>");
     }
     delay(1);
     client.stop();
@@ -146,7 +153,7 @@ void makeitScroll() {
   matrix.stroke(0xFFFFFFFF);
   matrix.textScrollSpeed(70);
 
-  const char text[] = "    UnO r4 FaCE DRiP    ";
+  const char text[] = "    ArDuiNo WaTeR FLoW MoNiToR   ";
   matrix.textFont(Font_4x6);
   matrix.beginText(0, 1, 0xFFFFFF);
   matrix.println(text);
