@@ -1,15 +1,15 @@
 //face drip LIB
-#include "Arduino_LED_Matrix.h"
 #include <stdint.h>
+#include <ArduinoGraphics.h>
+#include <Arduino_LED_Matrix.h>
 ArduinoLEDMatrix matrix;
 
 
 //wireless libs
 #include <SPI.h>
 #include <WiFiS3.h>  // Use WiFiS3 for Arduino Uno R4 WiFi
-#include <arduino_secrets.h> // create a secrets file with info needed for wifi
-const char* ssid = "SSID";
-const char* pass = "SSID_PASS";
+const char* ssid = "TryMe";
+const char* pass = "tyw7c4u6egfr";
 int status = WL_IDLE_STATUS; // set WiFi radio's status var
 // Create a WiFi server on port 80
 WiFiServer server(80);
@@ -32,10 +32,10 @@ void setup() {
   Serial.begin(9600);
 
   // load face drip frames at runtime
-  matrix.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
   matrix.begin();
+  matrix.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
   matrix.play(true);
-  
+
   // attempt to connect to the WiFi network:
   while (status != WL_CONNECTED) {
     Serial.print("Attempting to connect to: ");
@@ -58,7 +58,25 @@ void setup() {
   server.begin();
 }
 
+void faceDrip() {
+  // Make it scroll!
+  matrix.beginDraw();
+
+  matrix.stroke(0xFFFFFFFF);
+  matrix.textScrollSpeed(30);
+
+  // add the text
+  const char text[] = "    Arduino WaTeR FLoW MoNiToR    ";
+  matrix.textFont(Font_5x7);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.println(text);
+  matrix.endText(SCROLL_LEFT);
+
+  matrix.endDraw();
+}
+
 void loop() {
+  faceDrip();
   // Time interval for calculation (e.g., 1 second)
   unsigned long currentTime = millis();
 
@@ -103,30 +121,18 @@ void loop() {
     String request = client.readStringUntil('\r');
     client.flush();
 
-    if (request.indexOf("/flow") != -1) {
+    if (request.indexOf("/status") != -1) {
       // Send flow data as a response
       client.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n");
       client.print(flowRate);
-    }
-    if (request.indexOf("/session") != -1) {
-      // Send session data as a response
-      client.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n");
-      client.print(flowMilliLitres);
-    } 
-    if (request.indexOf("/total") != -1) {
-      // Send total flow data as a response
-      client.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n");
-      client.print(totalMilliLitres);
     } else {
       // Send the web page as a response
       client.print("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
       client.print("<html><body><h1>Water Flow Monitor</h1>");
-      client.print("<p>Current Flow Rate: <span id='flowRate'>0</span> mL/s</p></br>");
-      client.print("<script>setInterval(function() { fetch('/flow').then(response => response.text()).then(data => { document.getElementById('flowRate').innerText = data; }); }, 1000);</script>");
-      client.print("<p>Water Output This Session: <span id='flowMilliLitres'>0</span> mL/s</p></br>");
-      client.print("<script>setInterval(function() { fetch('/session').then(response => response.text()).then(data => { document.getElementById('flowMilliLitres').innerText = data; }); }, 1000);</script>");
-      client.print("<p>Total Water Used: <span id='totalMilliLitres'>0</span> L</p></br>");
-      client.print("<script>setInterval(function() { fetch('/total').then(response => response.text()).then(data => { document.getElementById('totalMilliLitres').innerText = data; }); }, 1000);</script>");
+      client.print(
+        "<br><p>Current Flow Rate: <span id='flowRate'>0</span> mL/s</p></br>"
+      );
+      client.print("<script>setInterval(function() { fetch('/status').then(response => response.text()).then(data => { document.getElementById('flowRate').innerText = data; }); }, 1000);</script>");
       client.print("</body></html>");
     }
     delay(1);
@@ -134,6 +140,20 @@ void loop() {
   }
 }
 
+void makeitScroll() {
+  matrix.begin();
+
+  matrix.stroke(0xFFFFFFFF);
+  matrix.textScrollSpeed(70);
+
+  const char text[] = "    UnO r4 FaCE DRiP    ";
+  matrix.textFont(Font_4x6);
+  matrix.beginText(0, 1, 0xFFFFFF);
+  matrix.println(text);
+  matrix.endText(SCROLL_LEFT);
+
+  matrix.endDraw();
+}
 
 // The wireless connection details
 void printWifiData() {
@@ -148,7 +168,7 @@ void printWifiData() {
 
   // print your board's IP address:
   IPAddress ip = WiFi.localIP();
-  Serial.print("Host IP: ");
+  Serial.print("Arduino IP: ");
   Serial.println(ip);
   
   // print your MAC address:
@@ -158,6 +178,7 @@ void printWifiData() {
   printMacAddress(mac);
 }
 
+// push/pop values to print 
 void printMacAddress(byte mac[]) {
   for (int i = 0; i < 6; i++) {
     if (i > 0) {
