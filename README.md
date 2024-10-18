@@ -2,7 +2,7 @@
 
 # Arduino Projects
 
-Tweaked some scripts for initial testing and running of some different types of water sensors using a bucket, a LetPot and an Arduino.
+Tweaked some scripts for initial testing and running of some different types of water sensors with and without Wifi. Copy the arduino_secrets.h file to the same directory as the script being ran, to store your sensitive data.
 
 ## Table of Contents
 
