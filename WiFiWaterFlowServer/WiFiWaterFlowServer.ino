@@ -7,6 +7,11 @@
 char ssid[] = SECRET_SSID;        // Replace with your WiFi network name
 char pass[] = SECRET_PASS; // Replace with your WiFi password
 
+// Create that drip class
+#include "ArduinoGraphics.h"
+#include "Arduino_LED_Matrix.h"
+ArduinoLEDMatrix faceDrip;
+
 // NTP Client setup
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000); // NTP server, UTC offset in seconds, update interval
@@ -41,7 +46,7 @@ void setup() {
   pinMode(flowSensorPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(flowSensorPin), pulseCounter, RISING);
 
-  // Initialize Wi-Fi connection
+  // Initialize Wi-Fi connection for the web server
   while (status != WL_CONNECTED) {
     status = WiFi.begin(ssid, pass); // start wifi con
     delay(10000); // wait 10 seconds
@@ -76,6 +81,11 @@ void printWifiStatus() {
 }
 
 void loop() {
+  // init FaceDrip
+  faceDrip.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
+  faceDrip.begin();
+  faceDrip.play(true);
+
   unsigned long currentMillis = millis();
 
   // Update NTP time periodically
