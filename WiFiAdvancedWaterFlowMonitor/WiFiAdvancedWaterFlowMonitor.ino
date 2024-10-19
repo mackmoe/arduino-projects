@@ -7,17 +7,9 @@
 char ssid[] = SECRET_SSID;        // Replace with your WiFi network name
 char pass[] = SECRET_PASS; // Replace with your WiFi password
 
-// Create that drip class
-#include "ArduinoGraphics.h"
-#include "Arduino_LED_Matrix.h"
-ArduinoLEDMatrix faceDrip;
-
-// Timezone offset in seconds for UTC-6
-const long utcOffsetInSeconds = -21600;
-
 // NTP Client setup
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, utcOffsetInSeconds); // NTP server, UTC offset in seconds, update interval
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000); // NTP server, UTC offset in seconds, update interval
 
 int status = WL_IDLE_STATUS;
 WiFiServer server(80); // Web server running on port 80
@@ -33,7 +25,7 @@ const unsigned long interval = 1000; // Update interval in milliseconds (1 secon
 // Calibration factor for the specific sensor (YF-S201 uses 4.5)
 const float calibrationFactor = 4.5;
 
-// Data for daily  (24 hourly readings)
+// Data for daily water usage (24 hourly readings)
 float hourlyUsage[24] = {0};
 
 // Interrupt service routine to count the pulses
@@ -49,17 +41,24 @@ void setup() {
   pinMode(flowSensorPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(flowSensorPin), pulseCounter, RISING);
 
-  // Initialize Wi-Fi connection for the web server
+  // Initialize Wi-Fi connection
   while (status != WL_CONNECTED) {
-    status = WiFi.begin(ssid, pass); // start wifi con
-    delay(10000); // wait 10 seconds
+    Serial.print("Attempting to connect to Wireless Network: ");
+    Serial.println(ssid);
+    // start wifi con
+    status = WiFi.begin(ssid, pass);
+    // wait 10 seconds
+    delay(10000);
   }
   printWifiStatus();
-  server.begin();
 
   // Start the NTP client
   timeClient.begin();
   timeClient.update();
+
+  // Start the server
+  server.begin();
+  Serial.println("Web server started");
 
   // Initialize hourly usage array
   memset(hourlyUsage, 0, sizeof(hourlyUsage));
@@ -67,28 +66,25 @@ void setup() {
 
 void printWifiStatus() {
   // print the SSID of the network you're attached to:
-  Serial.print("Connected to Wireless Network: ");
+  Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
+
+  // print your board's IP address:
+  IPAddress ip = WiFi.localIP();
+  Serial.print("IP Address: ");
+  Serial.println(ip);
 
   // print the received signal strength:
   long rssi = WiFi.RSSI();
-  Serial.print("Wireless Network Signal Strength (RSSI):");
+  Serial.print("signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
-
-  // print your board IP address over http:
-  IPAddress ip = WiFi.localIP();
-  server.begin();
-  Serial.print("WebServer started on http://");
+  // print where to go in a browser:
+  Serial.print("Water Flow Usage up on http://");
   Serial.println(ip);
 }
 
 void loop() {
-  // init FaceDrip
-  faceDrip.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
-  faceDrip.begin();
-  faceDrip.play(true);
-
   unsigned long currentMillis = millis();
 
   // Update NTP time periodically
