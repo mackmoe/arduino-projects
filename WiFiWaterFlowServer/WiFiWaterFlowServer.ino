@@ -33,7 +33,7 @@ const unsigned long interval = 1000; // Update interval in milliseconds (1 secon
 // Calibration factor for the specific sensor (YF-S201 uses 4.5)
 const float calibrationFactor = 4.5;
 
-// Data for daily water usage (24 hourly readings)
+// Data for daily  (24 hourly readings)
 float hourlyUsage[24] = {0};
 
 // Interrupt service routine to count the pulses
@@ -144,7 +144,7 @@ void loop() {
       if (i < 23) response += ",";
     }
 
-    response += "], datasets: [{ label: 'Water Usage (L)', data: [";
+    response += "], datasets: [{ label: 'Water Usage (G)', data: [";
 
     // Add hourly water usage data
     for (int i = 0; i < 24; i++) {
