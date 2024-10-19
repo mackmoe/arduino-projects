@@ -12,9 +12,12 @@ char pass[] = SECRET_PASS; // Replace with your WiFi password
 #include "Arduino_LED_Matrix.h"
 ArduinoLEDMatrix faceDrip;
 
+// Timezone offset in seconds for UTC-6
+const long utcOffsetInSeconds = -21600;
+
 // NTP Client setup
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000); // NTP server, UTC offset in seconds, update interval
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, utcOffsetInSeconds); // NTP server, UTC offset in seconds, update interval
 
 int status = WL_IDLE_STATUS;
 WiFiServer server(80); // Web server running on port 80
