@@ -7,6 +7,9 @@
 char ssid[] = SECRET_SSID;        // Replace with your WiFi network name
 char pass[] = SECRET_PASS; // Replace with your WiFi password
 
+#include "Arduino_LED_Matrix.h"   // Include the LED_Matrix library
+ArduinoLEDMatrix matrix;
+
 // NTP Client setup
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000); // NTP server, UTC offset in seconds, update interval
@@ -34,6 +37,11 @@ void pulseCounter() {
 }
 
 void setup() {
+  // Got dxt fxce drip
+  matrix.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
+  matrix.begin();
+  matrix.play(true);
+
   // Initialize serial communication
   Serial.begin(9600);
 
@@ -126,7 +134,8 @@ void loop() {
 
     // Prepare the response
     String response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-    response += "<!DOCTYPE HTML><html><link rel=https://static-00.iconduck.com/assets.00/apps-arduino-icon-256x256-mp2raho4.png></link><head><title>Water Usage Monitor</title>";
+    response += "<!DOCTYPE HTML><html><head><title>Water Usage Monitor</title>";
+    response += "<link rel='icon' href='https://img.icons8.com/?size=512&id=13444&format=png' type='image/x-icon'>";
     response += "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>";
     response += "<h2>Daily Water Usage Monitor</h2>";
     response += "<canvas id='usageChart' width='400' height='200'></canvas>";
