@@ -7,12 +7,15 @@
 char ssid[] = SECRET_SSID;        // Replace with your WiFi network name
 char pass[] = SECRET_PASS; // Replace with your WiFi password
 
+#include "Arduino_LED_Matrix.h"   // Include the LED_Matrix library
+ArduinoLEDMatrix matrix;
+
 // NTP Client setup
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000); // NTP server, UTC offset in seconds, update interval
 
 int status = WL_IDLE_STATUS;
-WiFiServer server(80); // Web server running on port 80
+WiFiServer server(8080); // Web server running on port 80
 
 // Flow sensor configuration
 const int flowSensorPin = 2; // Flow sensor connected to digital pin 2
@@ -34,6 +37,11 @@ void pulseCounter() {
 }
 
 void setup() {
+  // Got dxt fxce drip
+  matrix.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
+  matrix.begin();
+  matrix.play(true);
+
   // Initialize serial communication
   Serial.begin(9600);
 
@@ -47,40 +55,35 @@ void setup() {
     Serial.println(ssid);
     // start wifi con
     status = WiFi.begin(ssid, pass);
-    // wait 10 seconds
-    delay(10000);
+    // wait 5 seconds
+    delay(5000);
   }
+  server.begin(); // start websvc after connection is established
   printWifiStatus();
 
   // Start the NTP client
   timeClient.begin();
   timeClient.update();
 
-  // Start the server
-  server.begin();
-  Serial.println("Web server started");
-
   // Initialize hourly usage array
   memset(hourlyUsage, 0, sizeof(hourlyUsage));
+
 }
 
 void printWifiStatus() {
   // print the SSID of the network you're attached to:
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
-
-  // print your board's IP address:
-  IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-
+  
   // print the received signal strength:
+  IPAddress ip = WiFi.localIP();
   long rssi = WiFi.RSSI();
   Serial.print("signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
-  // print where to go in a browser:
-  Serial.print("Water Flow Usage up on http://");
+  Serial.println("WebServer started on Port 8080");
+  delay(100);
+  Serial.print("Water Usage Monitor on http://");
   Serial.println(ip);
 }
 
@@ -126,7 +129,8 @@ void loop() {
 
     // Prepare the response
     String response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-    response += "<!DOCTYPE HTML><html><link rel=https://static-00.iconduck.com/assets.00/apps-arduino-icon-256x256-mp2raho4.png></link><head><title>Water Usage Monitor</title>";
+    response += "<!DOCTYPE HTML><html><head><title>Water Usage Monitor</title>";
+    response += "<link rel='icon' href='https://img.icons8.com/?size=512&id=13444&format=png' type='image/x-icon'>";
     response += "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>";
     response += "<h2>Daily Water Usage Monitor</h2>";
     response += "<canvas id='usageChart' width='400' height='200'></canvas>";
