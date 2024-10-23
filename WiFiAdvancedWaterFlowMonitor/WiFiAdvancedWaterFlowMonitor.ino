@@ -126,7 +126,7 @@ void loop() {
 
     // Prepare the response
     String response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
-    response += "<!DOCTYPE HTML><html><head><title>Water Usage Monitor</title>";
+    response += "<!DOCTYPE HTML><html><link rel=https://static-00.iconduck.com/assets.00/apps-arduino-icon-256x256-mp2raho4.png></link><head><title>Water Usage Monitor</title>";
     response += "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script></head><body>";
     response += "<h2>Daily Water Usage Monitor</h2>";
     response += "<canvas id='usageChart' width='400' height='200'></canvas>";
