@@ -15,7 +15,7 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000); // NTP server, UTC offset in seconds, update interval
 
 int status = WL_IDLE_STATUS;
-WiFiServer server(80); // Web server running on port 80
+WiFiServer server(8080); // Web server running on port 80
 
 // Flow sensor configuration
 const int flowSensorPin = 2; // Flow sensor connected to digital pin 2
