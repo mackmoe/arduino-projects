@@ -2,7 +2,10 @@
 
 # Arduino Projects
 
-Tweaked some scripts for initial testing and running of some different types of water sensors with and without Wifi. Copy the arduino_secrets.h file to the same directory as the script being ran, to store your sensitive data.
+Tweaked some scripts for initial testing and running of some different types of water sensors using an Arduino UNO R4 Wifi server. Copy the arduino_secrets.h file to the same directory as the script being ran, to store your sensitive data.
+
+## Example
+To see this code in action, head over to my [Water Usage Monitor Web App](http://wum.molovestoshare.com:8080) to see this code in action.
 
 ## Table of Contents
 
@@ -74,12 +77,4 @@ Instructions on how to contribute to the project:
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
-## Contact
-
-If you have any questions or suggestions, feel free to reach out:
-
-- Your Name - [your.email@example.com](mailto:your.email@example.com)
-- Project Link - https://github.com/yourusername/projectname
-
 ---
