@@ -5,7 +5,7 @@
 Tweaked some scripts for initial testing and running of some different types of water sensors using an Arduino UNO R4 Wifi server. Copy the arduino_secrets.h file to the same directory as the script being ran, to store your sensitive data.
 
 ## Example
-To see this code in action, head over to my [Water Usage Monitor Web App](http://wum.molovestoshare.com:8080) to see this code in action.
+To see this code in action, head over to my [Water Usage Monitor Web App](http://wum.molovestoshare.com:8080).
 
 ## Table of Contents
 
