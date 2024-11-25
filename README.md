@@ -12,7 +12,6 @@ To see this code in action, head over to my self hosted [Water Usage Monitor App
 - [Introduction](#introduction)
 - [Features](#features)
 - [Installation](#installation)
-- [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
