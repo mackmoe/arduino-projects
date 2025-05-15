@@ -1,5 +1,4 @@
 *.json
 .vscode
-R4WiFi/Water_Flow_Sensor/arduino-secrets.h
-Water_Flow_Sensor/Water_Flow_Sensor.ino
+*secrets*
 .DS_Store
