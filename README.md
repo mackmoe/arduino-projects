@@ -40,47 +40,38 @@ Real-time temperature monitoring and automatic alerts for Deep Water Culture (DW
 * 4.7 KΩ pull-up resistor (if not included on adapter)
 * Jumper wires or breadboard
 
-**Software Dependencies (Library Manager):**
+## 🚀 Getting Started
 
-* WiFiNINA
-* OneWire
-* DallasTemperature
+1. 🔌 **Wire up**  
+   - DS18B20 data → D2  
+   - 12×8 LED matrix to SPI pins  
 
----
+2. 📝 **Configure**  
+   - Copy your Wi-Fi & IFTTT key into `arduino_secrets.h`  
+   - (Optional) Adjust `TEMP_LOW_THRESHOLD`, `TEMP_HIGH_THRESHOLD`, or `ALERT_COOLDOWN_MS`  
 
-## Installation & Setup
+3. 📦 **Upload**  
+   - Select **Arduino R4 WiFi** board  
+   - Compile & upload the sketch  
 
-1. **Clone the repository:**
+4. 🌐 **View Dashboard**  
+   - Point your browser at `http://<arduino-ip>/`  
+   - **Current Temp** auto-refreshes (60 s)  
+   - Browse history pages with **Prev/Next**  
 
-   ```bash
-   git clone https://github.com/your-username/arduino-projects.git
-   ```
-2. **Open the DWC monitor sketch:**
+5. 🔔 **Alerts**  
+   - Sends IFTTT SMS when temp goes out of range  
+   - Respects 15 min cool-down (`ALERT_COOLDOWN_MS`)  
 
-   * File: `DWC_Temp_Monitor.ino`
-3. **Install libraries** via **Sketch → Include Library → Manage Libraries...**
-4. **Configure your settings** in the sketch top section:
-
-   ```cpp
-   const char* SSID       = "YOUR_SSID";
-   const char* PASS       = "YOUR_PASSWORD";
-   const char* IFTTT_KEY  = "YOUR_IFTTT_KEY";
-   const char* EVENT_NAME = "dwc_temp_alert";
-   ```
-5. **Wire the DS18B20 sensor:**
-
-   * **VCC (red)** → 3.3 V
-   * **GND (black)** → GND
-   * **DATA (yellow)** → Pin D4 (with 4.7 KΩ pull-up to 3.3 V)
-6. **Upload** to your Nano RP2040 Connect.
-7. **Open Serial Monitor** at **115200 bauds** and watch temperature logs.
-
+6. 🔄 **Reset & Heatmap**  
+   - Click **Reset History** to clear logs  
+   - Scroll down to see a 24 h heatmap of readings  
 ---
 
 ## Usage
 
 * The sketch reads and prints the temperature in °C every 60 s.
-* If the temperature falls below **16 °C** or exceeds **22 °C**, it triggers an IFTTT webhook to send an SMS or app notification.
+* If the temperature falls below **16 °C** or exceeds **21 °C**, it triggers an IFTTT webhook to send an SMS notification.
 
 ## Contributing
 
