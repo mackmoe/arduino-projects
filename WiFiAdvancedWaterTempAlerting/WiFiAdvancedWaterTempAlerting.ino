@@ -1,306 +1,219 @@
 /**********************************************************************
- * 🌊💧🌡️🧐  DWC Water‑Temp Guardian for Arduino R4 WiFi                *
+ * 🌊💧📶🌡️🧐🦉  DWC Water‑Temp Guardian for Arduino R4 WiFi            *
+ * ------------------------------------------------------------------ *
+ * • Samples water temperature every 10 s (DS18B20 on D2)
+ * • Logs one **minute‑averaged** value (°C × 10, int16) — 2880 slots ≈ 5.8 kB RAM
+ * • Dark web page (auto‑refresh 5 s) shows current temp + 24/48/72 h low/high
+ * • LED matrix scrolls latest reading every 5 s
+ * • Alerts via IFTTT if temp < 17 °C or > 21 °C for ≥60 s, max once/5 min
  *********************************************************************/
-// Core WiFi library for R4 WiFi
 #include <WiFiS3.h>
-#include <WiFiClient.h>
+#include <WiFiSSLClient.h>
 #include <ArduinoHttpClient.h>
-
-// 1‑wire bus support & DS18B20 driver
 #include <OneWire.h>
 #include <DallasTemperature.h>
-
-// 12×8 LED matrix stuff
 #include <ArduinoGraphics.h>
 #include <Arduino_LED_Matrix.h>
-
+#include <math.h>
 #include "arduino_secrets.h"
 
-int status = WL_IDLE_STATUS;
+/* ─────── CONSTANTS ─────── */
+#define ONE_WIRE_BUS_PIN   2
+#define IFTTT_EVENT_NAME   "water_temp_alert"
+#define IFTTT_HOST         "maker.ifttt.com"
+#define IFTTT_PORT         443
+#define MONITOR_HOST       "192.168.50.233"
+#define MONITOR_PORT       8125
 
-// ── User‑configurable pins & thresholds ─────────────────────────────
-#define ONE_WIRE_BUS_PIN    2      // DS18B20 data connected here
-#define IFTTT_EVENT_NAME    "water_temp_alert"
-#define IFTTT_HOST          "maker.ifttt.com"
+constexpr float    TEMP_HIGH_THRESHOLD = 21.0;
+constexpr float    TEMP_LOW_THRESHOLD  = 17.0;
+constexpr uint32_t SAMPLE_INTERVAL_MS  = 10UL * 1000UL;   // 10 s
+constexpr uint32_t LOG_INTERVAL_MS     = 60UL * 1000UL;   // 1 min
+constexpr uint32_t OUT_OF_RANGE_MS     = 60UL * 1000UL;   // 60 s
+constexpr uint32_t ALERT_COOLDOWN_MS   = 5UL * 60UL * 1000UL; // 5 m
+constexpr uint32_t SCROLL_INTERVAL_MS  = 5UL * 1000UL;       // 5 s
 
-#define TEMP_HIGH_THRESHOLD 21.0   // °C upper bound
-#define TEMP_LOW_THRESHOLD  17.0   // °C lower bound
-#define SAMPLE_INTERVAL_MS 10000   // how often to read (10 s)
-#define REPORT_INTERVAL_MS 3600000UL
+constexpr uint16_t HISTORY_MINUTES = 48 * 60;              // 2880              // 4320
 
-#define HOURLY_EVENT_NAME     "water_temp_hourly"
-
-
-
-#define MAX_HISTORY 144
-float tempHistory[MAX_HISTORY];
-uint16_t historyIndex = 0;
-uint16_t historyCount = 0;
-uint32_t lastLogTime = 0;
-
-void initHistory() {
-  for (int i = 0; i < MAX_HISTORY; i++) {
-    tempHistory[i] = NAN;
-  }
-  historyIndex = 0;
-  historyCount = 0;
-}
-
-void logTemperature(float temp) {
-  if (historyCount < MAX_HISTORY) historyCount++;
-  tempHistory[historyIndex] = temp;
-  historyIndex = (historyIndex + 1) % MAX_HISTORY;
-}
-// ── Global objects & state ─────────────────────────────────────────
-OneWire        oneWire(ONE_WIRE_BUS_PIN);
+/* ─────── GLOBALS ─────── */
+OneWire           oneWire(ONE_WIRE_BUS_PIN);
 DallasTemperature sensors(&oneWire);
-ArduinoLEDMatrix matrix;
-
-WiFiClient     wifiClient;
-HttpClient     httpClient(wifiClient, IFTTT_HOST, 80);
-
-bool   alertSent = false;
-uint32_t lastSample = 0;
-uint32_t lastReport = 0;
+ArduinoLEDMatrix  matrix;
+WiFiSSLClient     sslClient;
+HttpClient        httpClient(sslClient, IFTTT_HOST, IFTTT_PORT);
+WiFiClient        monitorClient;
+WiFiServer        server(80);
 
 char ssid[] = SECRET_SSID;
-
-WiFiServer server(80);  // HTTP server on port 80
 char pass[] = SECRET_PASS;
 
-// ── Setup: init serial, display, sensor, WiFi ───────────────────────
-void setup() {
-  server.begin();  // Start the HTTP server
-  initHistory();
-  initTime();
-  initHeatmap();
-  Serial.begin(9600);
-  while (!Serial); // wait for Serial (if needed)
+uint32_t lastSample = 0,
+         lastLog    = 0,
+         lastAlertTime = 0,
+         outOfRangeStartMs = 0,
+         lastErrorTime = 0,
+         lastScroll = 0;
 
-  // LED‑matrix startup animation
-  matrix.loadSequence(LEDMATRIX_ANIMATION_STARTUP);
-  matrix.begin();
-  matrix.play(true);
+bool   inRange  = true;
+float  lastTemp = 0.0;
+String lastMonitorError = "";  // Track last monitor error
 
-  // Start DS18B20 sensor
-  sensors.begin();
+/* minute‑averaged history (store °C ×10 as int16_t to save RAM) */
+int16_t  hist[HISTORY_MINUTES];
+uint16_t histIdx   = 0;
+uint16_t histCount = 0;
+float    minuteSum = 0;
+uint8_t  minuteCnt = 0;
 
-  // Connect to WiFi
-  Serial.print("📶 Connecting to “");
-  Serial.print(ssid);
-  Serial.print("” …");
-  WiFi.begin(ssid, pass);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print('.');
+/* ─────── helpers ─────── */
+String cellStr(float v){ return isnan(v)? "—" : String(v,1)+"°"; }
+
+void minMaxLast(uint16_t minutes,float &lo,float &hi){
+  if(histCount==0){ lo = hi = NAN; return; }
+  uint16_t span = minutes > histCount ? histCount : minutes;
+  uint16_t start = (histIdx + HISTORY_MINUTES - span) % HISTORY_MINUTES;
+  lo = 1000; hi = -1000;
+  for(uint16_t i=0;i<span;i++){
+    float v = hist[(start+i)%HISTORY_MINUTES] / 10.0; // back to °C
+    if(v<lo) lo=v; if(v>hi) hi=v;
   }
-  Serial.println();
-  Serial.print("🛜 WiFi is Connected to: ");
-  Serial.println(WiFi.localIP());
-
-  lastSample = millis() - SAMPLE_INTERVAL_MS;
 }
 
-// ── Main loop: sample temp, display, check thresholds ───────────────
-void loop() {
-  handleClient();
+void sendIFTTTAlert(float t){
+  String path = "/trigger/"+String(IFTTT_EVENT_NAME)+"/with/key/"+SECRET_IFTTT_KEY;
+  String body = "{\"value1\":\""+String(t,1)+"\"}";
+  httpClient.beginRequest();
+  httpClient.post(path);
+  httpClient.sendHeader("Content-Type","application/json");
+  httpClient.sendHeader("Content-Length", body.length());
+  httpClient.beginBody(); httpClient.print(body); httpClient.endRequest();
+  while(httpClient.available()) httpClient.read(); httpClient.stop();
+}
 
-  float temp = sensors.getTempCByIndex(0);
-  if (millis() - lastLogTime >= 300000UL) {
-    logTemperature(temp);
-    lastLogTime = millis();
+void sendMonitorUpdate(float t) {
+  String payload = "{\"source\":\"dwc_r4wifi\",\"temperature\":{\"value\":" + String(t,1) + "}}";
+  uint32_t now = millis();
+  
+  // Clear old errors after timeout
+  if (lastMonitorError.length() > 0 && (now - lastErrorTime >= ALERT_COOLDOWN_MS)) {
+    lastMonitorError = "";
   }
+  
+  if (monitorClient.connect(MONITOR_HOST, MONITOR_PORT)) {
+    monitorClient.println("POST /dwc-temp-monitor HTTP/1.1");
+    monitorClient.println("Host: " + String(MONITOR_HOST));
+    monitorClient.println("Content-Type: application/json");
+    monitorClient.println("Content-Length: " + String(payload.length()));
+    monitorClient.println();
+    monitorClient.println(payload);
+    
+    // Wait for response
+    while(monitorClient.available()) {
+      monitorClient.read();
+    }
+    monitorClient.stop();
+    lastMonitorError = ""; // Clear error on successful send
+  } else {
+    lastMonitorError = "Telegraf push failed"; // Set error message
+    lastErrorTime = now; // Update error timestamp
+  }
+}
+
+void serveHome(WiFiClient &c,float cur){
+  float lo24,hi24,lo48,hi48,lo72,hi72;
+  minMaxLast(24*60,lo24,hi24);
+  minMaxLast(48*60,lo48,hi48);
+  minMaxLast(72*60,lo72,hi72);
+
+  String html =
+    "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+    "<meta http-equiv='refresh' content='5'><title>DWC Temp</title>"
+    "<style>html,body{height:100%;margin:0}body{display:flex;flex-direction:column;align-items:center;background:#121212;color:#e0e0e0;font-family:Arial,sans-serif;text-align:center}h1{margin:0;font-size:9vw}table{border-collapse:collapse;margin-top:1rem}th,td{border:1px solid #999;padding:6px 12px}th{background:#0d5c7d;color:#fff}</style></head><body>";
+  html += "<h1>🌡️ "+String(cur,1)+" °C</h1>";
+  html += "<div style='font-size:5vw;margin-top:0.3rem'>🌊 Current 💧 DWC&nbsp;Temp 🌡️</div>";
+  html += "<table><tr><th colspan='4'>Temperature Over The Last</th></tr><tr><th></th><th>24 HRS</th><th>48 HRS</th><th>72 HRS</th></tr>";
+  html += "<tr><td>Low:</td><td>"+cellStr(lo24)+"</td><td>"+cellStr(lo48)+"</td><td>"+cellStr(lo72)+"</td></tr>";
+  html += "<tr><td>High:</td><td>"+cellStr(hi24)+"</td><td>"+cellStr(hi48)+"</td><td>"+cellStr(hi72)+"</td></tr></table>";
+  if (lastMonitorError.length() > 0) {
+    html += "<div style='color:#ff4444;margin-top:1rem'>⚠️ " + lastMonitorError + "</div>";
+  }
+  html += "</body></html>";
+  c.print("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n");
+  c.print(html);
+}
+
+/* ─────── SETUP ─────── */
+void setup(){
+  Serial.begin(9600);
+  matrix.begin();
+  sensors.begin();
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+  server.begin();
+  lastSample = lastLog = lastScroll = millis();
+}
+
+/* ─────── MAIN LOOP ─────── */
+void loop(){
+  if (WiFiClient client = server.available()){
+    if(client){
+      client.readStringUntil('\r');
+      while(client.available()) client.read();
+      serveHome(client, lastTemp);
+      client.stop();
+    }
+  }
+
   uint32_t now = millis();
 
-  // — only when it’s time to sample do we read, display, and threshold —
-  if (now - lastSample >= SAMPLE_INTERVAL_MS) {
+  // 10‑second sampling
+  if(now - lastSample >= SAMPLE_INTERVAL_MS){
     lastSample = now;
-
-    // 1) Read the sensor
     sensors.requestTemperatures();
-    float tC = sensors.getTempCByIndex(0);
+    float t = sensors.getTempCByIndex(0);
+    lastTemp = t;
+    Serial.print("Temp: "); Serial.println(t,1);
+    
+    // Send temperature update to monitor
+    sendMonitorUpdate(t);
 
-    // 2) Guard against read‑errors
-    if (tC <= -100.0) {
-      Serial.println("⚠️ DS18B20 read error");
-      return; // skip display & alerts this cycle
-    }
+    minuteSum += t; minuteCnt++;
 
-    // 3) Print + display
-    Serial.print("🌡️ Temperature: ");
-    Serial.print(tC, 1);
-    Serial.println(" °C");
-
-    // — scrolling text on the 12×8 matrix —
-    char buf[7];
-    dtostrf(tC, 4, 1, buf);
-
-    matrix.beginDraw();
-      matrix.stroke(0xFFFFFFFF);
-      matrix.textFont(Font_5x7);
-      matrix.textScrollSpeed(200);           // ← you need this!
-      matrix.beginText(0, 1, 0xFFFFFFFF);
-      matrix.println(buf);
-      matrix.endText(SCROLL_LEFT);
-    matrix.endDraw();
-
-    // 4) Threshold alert via IFTTT
-    if ((tC < TEMP_LOW_THRESHOLD || tC > TEMP_HIGH_THRESHOLD) && !alertSent) {
-      sendIFTTTAlert(tC);
-      alertSent = true;
-    }
-    else if (tC >= TEMP_LOW_THRESHOLD && tC <= TEMP_HIGH_THRESHOLD) {
-      alertSent = false;
-    }
-  }
-
-  // — hourly (or test‑interval) report with a fresh read —
-  if (now - lastReport >= REPORT_INTERVAL_MS) {
-    lastReport = now;
-    sensors.requestTemperatures();
-    float tC_report = sensors.getTempCByIndex(0);
-    sendHourlyReport(tC_report);
-  }
-}
-
-// ── Helper: fire IFTTT webhook with temperature as value1 ───────────
-void sendIFTTTAlert(float t) {
-  String path = String("/trigger/") + IFTTT_EVENT_NAME +
-                "/with/key/" + SECRET_IFTTT_KEY +
-                "?value1=" + String(t,1);
-
-  Serial.print("→ IFTTT GET ");
-  Serial.println(path);
-
-  httpClient.get(path);
-  int code = httpClient.responseStatusCode();
-  String body = httpClient.responseBody();
-  Serial.print("🦉IFTTT responded: ");
-  Serial.print(code);
-  Serial.print(" / ");
-  Serial.println(body);
-}
-
-void sendHourlyReport(float t) {
-  String path = String("/trigger/") + HOURLY_EVENT_NAME
-                + "/with/key/" + SECRET_IFTTT_KEY
-                + "?value1=" + String(t,1);
-  Serial.print("→ hourly GET ");
-  Serial.println(path);
-  httpClient.get(path);
-  Serial.print("✉️ Hourly IFTTT: ");
-  Serial.print(httpClient.responseStatusCode());
-  Serial.print(" / ");
-  Serial.println(httpClient.responseBody());
-}
-
-
-// ── HTTP client handler ─────────────────────────────────────────────
-void handleClient() {
-  WiFiClient client = server.available();
-  if (client) {
-    String req = client.readStringUntil('\r');
-    client.flush();
-
-    if (req.indexOf("GET /reset") >= 0) initHistory();
-    if (req.indexOf("GET /reset_heatmap") >= 0) resetHeatmap();
-
-    float currentTemp = sensors.getTempCByIndex(0);
-    logToHeatmap(currentTemp);
-
-    String html = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n";
-    html += "<html><head>";
-html += "<meta http-equiv='refresh' content='60'>";
-html += "<style>";
-html += "body { background-color: #121212; color: #f0f0f0; font-family: sans-serif; margin: 0; padding: 1rem; }";
-html += "a { color: #90caf9; }";
-html += "table { border-collapse: collapse; width: 100%; max-width: 100%; overflow-x: auto; display: block; }";
-html += "th, td { border: 1px solid #333; text-align: center; padding: 4px; font-size: 0.9rem; }";
-html += "@media (max-width: 600px) {";
-html += "th, td { font-size: 0.75rem; padding: 2px; }";
-html += "}";
-html += "</style>";
-html += "</head><body>";
-    html += "<h2>DWC Water Temperature</h2>";
-    html += "<p>Current Temp: " + String(currentTemp, 1) + " &deg;C</p>";
-    html += "<p><a href='/reset'>Reset History</a></p>";
-    html += "<h3>Temp History</h3><ul>";
-    for (uint16_t i = 0; i < historyCount; i++) {
-      uint16_t idx = (historyIndex + MAX_HISTORY - historyCount + i) % MAX_HISTORY;
-      html += "<li>" + String(i + 1) + ": " + String(tempHistory[idx], 1) + " &deg;C</li>";
-    }
-    html += "</ul>";
-
-    html += renderHeatmapHTML();
-    html += "</body></html>";
-
-    client.print(html);
-    client.stop();
-  }
-}
-
-
-
-// ── NTP Client Setup ────────────────────────────────────────────────
-#include <WiFiUdp.h>
-#include <NTPClient.h>
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000);  // UTC-5 for CDT  // UTC time
-
-// ── Heatmap Buffer ──────────────────────────────────────────────────
-float tempByHour[7][24];  // day (0=Sun) x hour
-bool heatmapFilled[7][24];
-
-// ── Initialize NTP and heatmap ──────────────────────────────────────
-void initTime() {
-  timeClient.begin();
-  timeClient.update();
-}
-
-void initHeatmap() {
-  for (int d = 0; d < 7; d++) {
-    for (int h = 0; h < 24; h++) {
-      tempByHour[d][h] = NAN;
-      heatmapFilled[d][h] = false;
-    }
-  }
-}
-
-// ── Reset heatmap ───────────────────────────────────────────────────
-void resetHeatmap() {
-  initHeatmap();
-}
-
-// ── Log temperature to NTP time slot ────────────────────────────────
-void logToHeatmap(float temp) {
-  timeClient.update();
-  unsigned long epochTime = timeClient.getEpochTime();
-  int h = (epochTime  % 86400UL) / 3600;          // hour of day
-  int d = ((epochTime / 86400UL) + 4) % 7;        // day of week, 0 = Sun
-  tempByHour[d][h] = temp;
-  heatmapFilled[d][h] = true;
-}
-
-// ── Render heatmap HTML ─────────────────────────────────────────────
-String renderHeatmapHTML() {
-  const char* days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-  String html = "<h3>Heatmap: Hour × Day</h3><table border='1'><tr><th>Hour</th>";
-  for (int d = 0; d < 7; d++) html += "<th>" + String(days[d]) + "</th>";
-  html += "</tr>";
-  for (int h = 0; h < 24; h++) {
-    html += "<tr><td>" + String(h) + ":00</td>";
-    for (int d = 0; d < 7; d++) {
-      if (heatmapFilled[d][h]) {
-        float t = tempByHour[d][h];
-        if (t < 17.0) html += "<td>🟦</td>";
-        else if (t <= 21.0) html += "<td>🟩</td>";
-        else html += "<td>🟥</td>";
-      } else {
-        html += "<td>⬜</td>";
+    bool out = (t < TEMP_LOW_THRESHOLD || t > TEMP_HIGH_THRESHOLD);
+    if(out){
+      if(inRange){ inRange = false; outOfRangeStartMs = now; }
+      else if((now - outOfRangeStartMs >= OUT_OF_RANGE_MS) && (now - lastAlertTime >= ALERT_COOLDOWN_MS)){
+        sendIFTTTAlert(t);
+        lastAlertTime = now;
+        outOfRangeStartMs = now;
       }
+    } else {
+      inRange = true;
     }
-    html += "</tr>";
   }
-  html += "</table><p><a href='/reset_heatmap'>Reset Heatmap</a></p>";
-  return html;
+
+  // minute‑average logging
+  if(now - lastLog >= LOG_INTERVAL_MS){
+    lastLog = now;
+    if(minuteCnt == 0) minuteCnt = 1;
+    float avg = minuteSum / minuteCnt;
+    hist[histIdx] = int16_t(round(avg * 10));
+    histIdx = (histIdx + 1) % HISTORY_MINUTES;
+    if(histCount < HISTORY_MINUTES) histCount++;
+    minuteSum = 0; minuteCnt = 0;
+  }
+
+  // LED scroll every 5 s
+  if(now - lastScroll >= SCROLL_INTERVAL_MS){
+    lastScroll = now;
+    char buf[8]; dtostrf(lastTemp,4,1,buf);
+    matrix.beginDraw();
+    matrix.stroke(0xFFFFFFFF);
+    matrix.textFont(Font_5x7);
+    matrix.textScrollSpeed(200);
+    matrix.beginText(0,1,0xFFFFFFFF);
+    matrix.println(buf);
+    matrix.endText(SCROLL_LEFT);
+    matrix.endDraw();
+  }
 }
