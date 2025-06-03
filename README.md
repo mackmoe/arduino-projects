@@ -23,68 +23,127 @@ The wired version has a python script that prints output from the console but, t
 
 
 ### DWC Bucket Temperature Monitor
+Here’s the complete README in raw Markdown you can copy-paste directly:
 
-Real-time temperature monitoring and automatic alerts for Deep Water Culture (DWC) systems.<br><br>
-![DWC Temp Monitor](https://i.ibb.co/DHF15VFw/Screenshot-2025-05-26-114534.png)
+```markdown
+# DWC Water-Temp Guardian for Arduino R4 WiFi
 
+A self-contained temperature-control, monitoring, and alerting solution for Deep-Water Culture (DWC) hydroponic reservoirs.
 
-**Features:**
+* **Hardware**: Arduino UNO R4 WiFi, DS18B20 probe, TEC1-12706 Peltier module, IRLZ44N MOSFET (low-side), 12 V / 6 A PSU, on-board 12 × 8 LED matrix  
+* **Features**
+  * Samples water temperature every **10 s**
+  * Maintains water between **17 °C – 20 °C** (MOSFET on D8)
+  * Streams JSON metrics to **Telegraf** (HTTP listener on port 8125)
+  * Sends **IFTTT** alerts if temp stays out-of-band ≥ 60 s (15-min cooldown)
+  * Scrolls live temperature on the LED matrix every 5 s
 
-* Reads water temperature in a 5-gallon DWC bucket every minute
-* Connects Arduino Uno R4 via Wi-Fi 
-* Sends alerts through IFTTT Maker Webhooks when temperature drifts outside a configurable band (default **17–21 °C**) via IFTTT PUSH notifications so it's free and not rate limited 
-* Displays hi/lo temps from last 48 hours of log/readings over the web server ***(the 72 h column will just show “—” until enough data accrues, or you can remove that column)***
-
-**Hardware Requirements:**
-
-* Arduino Nano RP2040 Connect
-* Waterproof DS18B20 temperature sensor + adapter board
-* 4.7 KΩ pull-up resistor (if not included on adapter)
-* Jumper wires or breadboard
-
-## 🚀 Getting Started
-
-1. 🔌 **Wire up**  
-   - DS18B20 data → D2  
-   - 12×8 LED matrix to SPI pins  
-
-2. 📝 **Configure**  
-   - Copy your Wi-Fi & IFTTT key into `arduino_secrets.h`  
-   - (Optional) Adjust `TEMP_LOW_THRESHOLD`, `TEMP_HIGH_THRESHOLD`, or `ALERT_COOLDOWN_MS`  
-
-3. 📦 **Upload**  
-   - Select **Arduino R4 WiFi** board  
-   - Compile & upload the sketch  
-
-4. 🌐 **View Dashboard**  
-   - Point your browser at `http://<arduino-ip>/`  
-   - **Current Temp** auto-refreshes (60 s)  
-   - Browse history pages with **Prev/Next**  
-
-5. 🔔 **Alerts**  
-   - Sends IFTTT SMS when temp goes out of range  
-   - Respects 15 min cool-down (`ALERT_COOLDOWN_MS`)  
-
-6. 🔄 **Reset & Heatmap**  
-   - Click **Reset History** to clear logs  
-   - Scroll down to see a 24 h heatmap of readings  
 ---
 
-## Usage
+## 1  Bill of Materials
 
-* The sketch reads and prints the temperature in °C every 60 s.
-* If the temperature falls below **16 °C** or exceeds **21 °C**, it triggers an IFTTT webhook to send an SMS notification.
+| Qty | Part | Notes |
+| --- | ---- | ----- |
+| 1 | Arduino UNO R4 WiFi | ESP32-S3 coprocessor, LED matrix |
+| 1 | DS18B20 waterproof sensor | + 4.7 kΩ pull-up |
+| 1 | TEC1-12706 Peltier + heatsink/fan | good hot-side cooling **required** |
+| 1 | IRLZ44N logic-level MOSFET | TO-220 package |
+| 1 | 12 V ≥ 6 A DC supply | dedicated for Peltier |
+| — | Wiring, 150 Ω gate resistor, 10 kΩ pulldown, Schottky diode | misc |
 
-## Contributing
+> ⚠️ The Arduino **only** drives the MOSFET gate. The TEC’s current flows directly from the 12 V supply.
 
-Contributions are welcome! Please:
+---
 
-1. Fork this repo
-2. Create a branch: `git checkout -b feature/your-feature`
-3. Make changes and commit: `git commit -m "Add your feature"`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
+## 2  Wiring
 
-## License
+```
 
-This project is licensed under the [MIT License](LICENSE).
+12 V(+) ───────► TEC +
+TEC – ───► MOSFET D
+MOSFET S ──────► GND  ◄── Arduino GND
+Arduino D8 ─150 Ω─► MOSFET G
+│
+└─10 kΩ─► GND
+
+````
+
+Common ground is mandatory.  
+Add a Schottky diode (e.g., 1N5819) across the TEC for surge protection.
+
+---
+
+## 3  Software Setup
+
+### 3.1  Secrets
+
+Create **`arduino_secrets.h`**:
+
+```cpp
+#define SECRET_SSID      "your-ssid"
+#define SECRET_PASS      "your-wifi-password"
+#define SECRET_IFTTT_KEY "xxxxxxxxxxxxxxxxxxxxxx"
+````
+
+### 3.2  Libraries
+
+Install via Library Manager:
+
+* WiFiS3
+* OneWire
+* DallasTemperature
+* ArduinoHttpClient
+
+### 3.3  Build & Flash
+
+1. Open `dwc_water_temp_guardian_hysteresis.ino` in the Arduino IDE
+2. Select **Arduino UNO R4 WiFi** board
+3. *Verify* → *Upload*
+
+---
+
+## 4  Telegraf Quick Config
+
+```toml
+[[inputs.http_listener_v2]]
+  service_address = ":8125"
+  data_format     = "json_v2"
+```
+
+*Grafana gauge query (last 30 s):*
+
+```flux
+from(bucket: "dwc_temp_monitoring")
+  |> range(start: -30s)
+  |> filter(fn: (r) =>
+       r._measurement == "http_listener_v2" and
+       r._field == "temperature")
+```
+
+---
+
+## 5  Control Logic
+
+| Condition    | Action      | State           |
+| ------------ | ----------- | --------------- |
+| Temp > 20 °C | MOSFET HIGH | **Cooling ON**  |
+| Temp < 17 °C | MOSFET LOW  | **Cooling OFF** |
+
+LED matrix scrolls the latest reading; serial console logs raw values.
+
+---
+
+## 6  Troubleshooting
+
+* **No Wi-Fi** → verify `SECRET_SSID/PASS`, 2.4 GHz only
+* **No metrics** → check Telegraf listener `http://<host>:8125/dwc-temp-monitor`
+* **Peltier always ON/OFF** → ensure hot-side heatsink fan is powered and DS18B20 probe is submerged
+
+---
+
+## 7  License
+
+MIT © 2025 Mo
+
+```
+```
