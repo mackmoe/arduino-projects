@@ -151,14 +151,27 @@ void loop() {
   /* ── LED control ── */
   if (now - lastScroll >= SCROLL_INTERVAL_MS) {
     lastScroll = now;
-    char buf[8]; dtostrf(lastTemp, 4, 1, buf);
+    static bool showTemp = true;
+    
     matrix.beginDraw();
     matrix.clear();
-    matrix.textFont(Font_5x7);
-    matrix.textScrollSpeed(200);
-    matrix.beginText(0,1,0xFFFFFFFF);
-    matrix.println(buf);
-    matrix.endText(SCROLL_LEFT);
+    
+    if (showTemp) {
+      char buf[8]; dtostrf(lastTemp, 4, 1, buf);
+      matrix.textFont(Font_5x7);
+      matrix.textScrollSpeed(200);
+      matrix.beginText(0,1,0xFFFFFFFF);
+      matrix.println(buf);
+      matrix.endText(SCROLL_LEFT);
+    } else {
+      if (peltierOn) {
+        matrix.loadFrame(LEDMATRIX_EMOJI_SAD);
+      } else {
+        matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);
+      }
+    }
+    
     matrix.endDraw();
+    showTemp = !showTemp;  // Toggle between temperature and emoji
   }
 }
