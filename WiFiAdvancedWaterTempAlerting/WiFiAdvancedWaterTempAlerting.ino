@@ -1,11 +1,10 @@
 /**********************************************************************
  * 🌊💧📶🌡️🤮🦉  DWC Water‑Temp Guardian for Arduino R4 WiFi            *
  * ------------------------------------------------------------------ *
- * • Samples water temperature every 10 s (DS18B20 on D2)
- * • LED matrix scrolls latest reading every 5 s
+ * • Samples water temperature every 10 s (DS18B20 on D2)
+ * • LED matrix scrolls latest reading every 5 s
  * • Sends data to Telegraf monitoring
- * • Alerts via IFTTT if temp out of range for ≥60 s
- * • Drives TEC1‑12706 via IRLZ44N MOSFET on D8 (target band 17–20 °C)
+ * • Alerts via IFTTT if temp out of range for ≥60 s
  *********************************************************************/
 #include <math.h>
 #include <WiFiS3.h>
@@ -19,12 +18,13 @@
 
 /* ─────── CONSTANTS ─────── */
 #define ONE_WIRE_BUS_PIN  2           // DS18B20 data gate
-#define PELTIER_PIN       8           // Gate of IRLZ44N MOSFET
 #define MONITOR_HOST      "hostname-or-ip"   // Replace with your Telegraf host
 #define MONITOR_PORT      8125
 #define IFTTT_EVENT_NAME  "water_temp_alert"
 #define IFTTT_HOST        "maker.ifttt.com"
 #define IFTTT_PORT        443
+#define KASA_PLUG_IP     "hostname-or-ip"  // Replace with your HS103 IP address
+#define KASA_PLUG_PORT   9999
 
 constexpr uint32_t SAMPLE_INTERVAL_MS = 10UL * 1000UL;     // 10 s
 constexpr uint32_t LOG_INTERVAL_MS     = 60UL * 1000UL;   // 1 min (reserved)
@@ -32,6 +32,7 @@ constexpr uint32_t SCROLL_INTERVAL_MS = 5UL  * 1000UL;     // 5 s
 constexpr uint32_t ALERT_COOLDOWN_MS  = 15UL * 60UL * 1000UL; // 15 m
 constexpr uint32_t OUT_OF_RANGE_MS    = 60UL * 1000UL;     // 60 s
 
+constexpr float PELTIER_ON_TEMP = 17.0;   // °C  → turn ON above
 constexpr float TEMP_HIGH_THRESHOLD = 20.0;   // °C  → turn ON above
 constexpr float TEMP_LOW_THRESHOLD  = 17.0;   // °C  → turn OFF below
 
@@ -42,6 +43,7 @@ ArduinoLEDMatrix  matrix;
 WiFiClient        monitorClient;
 WiFiSSLClient     sslClient;
 HttpClient        httpClient(sslClient, IFTTT_HOST, IFTTT_PORT);
+WiFiUDP udp;
 
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
@@ -54,8 +56,8 @@ uint32_t lastSample = 0,
 
 float  lastTemp = NAN;
 String lastMonitorError = "";
-bool   peltierOn = false;
 bool   inRange   = true;
+bool plugState = false;
 
 /* ─────── helpers ─────── */
 void sendMonitorUpdate(float t) {
@@ -96,14 +98,41 @@ void sendIFTTTAlert(float t) {
   httpClient.stop();
 }
 
+void kasaSendCommand(const char* command) {
+  // Initialize buffer and length
+  int len = strlen(command);
+  char buffer[100];
+  buffer[0] = 0x00;
+  buffer[1] = 0x00;
+  buffer[2] = 0x00;
+  buffer[3] = (char)len;
+
+  // Encrypt command using XOR autokey
+  uint8_t key = 171;
+  for (int i = 0; i < len; i++) {
+    buffer[i + 4] = command[i] ^ key;
+    key = buffer[i + 4];
+  }
+
+  udp.beginPacket(KASA_PLUG_IP, KASA_PLUG_PORT);
+  udp.write((uint8_t*)buffer, len + 4);
+  udp.endPacket();
+}
+
+void setPlugState(bool on) {
+  if (on == plugState) return;
+  kasaSendCommand(on ? 
+    "{\"system\":{\"set_relay_state\":{\"state\":1}}}" :
+    "{\"system\":{\"set_relay_state\":{\"state\":0}}}");
+  plugState = on;
+}
+
 /* ─────── SETUP ─────── */
 void setup() {
   Serial.begin(9600);
   matrix.begin();
   sensors.begin();
-  pinMode(PELTIER_PIN, OUTPUT);  // MOSFET gate
-  digitalWrite(PELTIER_PIN, LOW); // Peltier OFF at boot
-
+  
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) delay(500);
   lastSample = lastScroll = millis();
@@ -113,7 +142,7 @@ void setup() {
 void loop() {
   uint32_t now = millis();
 
-  /* ── Temperature sample & Peltier control ── */
+  /* ── Temperature sample & monitoring ── */
   if (now - lastSample >= SAMPLE_INTERVAL_MS) {
     lastSample = now;
     sensors.requestTemperatures();
@@ -121,17 +150,11 @@ void loop() {
     Serial.print("Temp: "); Serial.println(lastTemp,1);
     sendMonitorUpdate(lastTemp);
 
-    /* ── Two‑level control ── */
-    if (peltierOn) {
-      if (lastTemp < TEMP_LOW_THRESHOLD) {
-        digitalWrite(PELTIER_PIN, LOW);
-        peltierOn = false;
-      }
-    } else {
-      if (lastTemp > TEMP_HIGH_THRESHOLD) {
-        digitalWrite(PELTIER_PIN, HIGH);
-        peltierOn = true;
-      }
+    /* ── Smartswitch logic ── */
+    if (lastTemp < 15.0) {  // Hard-coded threshold for clarity
+      setPlugState(false);
+    } else if (lastTemp >= PELTIER_ON_TEMP) {
+      setPlugState(true);
     }
 
     /* ── Alert logic ── */
@@ -151,27 +174,15 @@ void loop() {
   /* ── LED control ── */
   if (now - lastScroll >= SCROLL_INTERVAL_MS) {
     lastScroll = now;
-    static bool showTemp = true;
-    
     matrix.beginDraw();
     matrix.clear();
-    
-    if (showTemp) {
-      char buf[8]; dtostrf(lastTemp, 4, 1, buf);
-      matrix.textFont(Font_5x7);
-      matrix.textScrollSpeed(200);
-      matrix.beginText(0,1,0xFFFFFFFF);
-      matrix.println(buf);
-      matrix.endText(SCROLL_LEFT);
-    } else {
-      if (peltierOn) {
-        matrix.loadFrame(LEDMATRIX_EMOJI_SAD);
-      } else {
-        matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);
-      }
-    }
-    
+    char buf[8]; dtostrf(lastTemp, 4, 1, buf);
+    matrix.textFont(Font_5x7);
+    matrix.textScrollSpeed(200);
+    matrix.beginText(0,1,0xFFFFFFFF);
+    matrix.println(buf);
+    matrix.endText(SCROLL_LEFT);
+  } else {
     matrix.endDraw();
-    showTemp = !showTemp;  // Toggle between temperature and emoji
   }
 }
