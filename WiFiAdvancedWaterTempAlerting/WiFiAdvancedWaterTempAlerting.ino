@@ -18,23 +18,20 @@
 
 /* ─────── CONSTANTS ─────── */
 #define ONE_WIRE_BUS_PIN  2           // DS18B20 data gate
-#define MONITOR_HOST      "hostname-or-ip"   // Replace with your Telegraf host
+#define MONITOR_HOST      "tgt_host"   // Replace with your Telegraf host
 #define MONITOR_PORT      8125
 #define IFTTT_EVENT_NAME  "water_temp_alert"
 #define IFTTT_HOST        "maker.ifttt.com"
 #define IFTTT_PORT        443
-#define KASA_PLUG_IP     "hostname-or-ip"  // Replace with your HS103 IP address
-#define KASA_PLUG_PORT   9999
 
 constexpr uint32_t SAMPLE_INTERVAL_MS = 10UL * 1000UL;     // 10 s
 constexpr uint32_t LOG_INTERVAL_MS     = 60UL * 1000UL;   // 1 min (reserved)
 constexpr uint32_t SCROLL_INTERVAL_MS = 5UL  * 1000UL;     // 5 s
-constexpr uint32_t ALERT_COOLDOWN_MS  = 15UL * 60UL * 1000UL; // 15 m
+constexpr uint32_t ALERT_COOLDOWN_MS  = 5UL * 60UL * 1000UL; // 5 m
 constexpr uint32_t OUT_OF_RANGE_MS    = 60UL * 1000UL;     // 60 s
 
-constexpr float PELTIER_ON_TEMP = 17.0;   // °C  → turn ON above
-constexpr float TEMP_HIGH_THRESHOLD = 20.0;   // °C  → turn ON above
-constexpr float TEMP_LOW_THRESHOLD  = 17.0;   // °C  → turn OFF below
+constexpr float TEMP_LOW_THRESHOLD  = 16; // <16°C = 🥶Reduced Growth/Plant Shock/Stress
+constexpr float TEMP_HIGH_THRESHOLD = 23; // >23°C = 🦠Pathogen Risk
 
 /* ─────── GLOBALS ─────── */
 OneWire           oneWire(ONE_WIRE_BUS_PIN);
@@ -45,19 +42,22 @@ WiFiSSLClient     sslClient;
 HttpClient        httpClient(sslClient, IFTTT_HOST, IFTTT_PORT);
 WiFiUDP udp;
 
+// WiFi credentials
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
+// telegraf host
+char tgt_host[] = hostname_or_ip;
 
 uint32_t lastSample = 0,
-         lastScroll = 0,
-         lastAlertTime = 0,
-         outOfRangeStart = 0,
-         lastErrorTime = 0;
+lastScroll = 0,
+lastAlertTime = 0,
+outOfRangeStart = 0,
+lastErrorTime = 0;
 
 float  lastTemp = NAN;
 String lastMonitorError = "";
 bool   inRange   = true;
-bool plugState = false;
+
 
 /* ─────── helpers ─────── */
 void sendMonitorUpdate(float t) {
@@ -98,35 +98,6 @@ void sendIFTTTAlert(float t) {
   httpClient.stop();
 }
 
-void kasaSendCommand(const char* command) {
-  // Initialize buffer and length
-  int len = strlen(command);
-  char buffer[100];
-  buffer[0] = 0x00;
-  buffer[1] = 0x00;
-  buffer[2] = 0x00;
-  buffer[3] = (char)len;
-
-  // Encrypt command using XOR autokey
-  uint8_t key = 171;
-  for (int i = 0; i < len; i++) {
-    buffer[i + 4] = command[i] ^ key;
-    key = buffer[i + 4];
-  }
-
-  udp.beginPacket(KASA_PLUG_IP, KASA_PLUG_PORT);
-  udp.write((uint8_t*)buffer, len + 4);
-  udp.endPacket();
-}
-
-void setPlugState(bool on) {
-  if (on == plugState) return;
-  kasaSendCommand(on ? 
-    "{\"system\":{\"set_relay_state\":{\"state\":1}}}" :
-    "{\"system\":{\"set_relay_state\":{\"state\":0}}}");
-  plugState = on;
-}
-
 /* ─────── SETUP ─────── */
 void setup() {
   Serial.begin(9600);
@@ -149,13 +120,6 @@ void loop() {
     lastTemp = sensors.getTempCByIndex(0);
     Serial.print("Temp: "); Serial.println(lastTemp,1);
     sendMonitorUpdate(lastTemp);
-
-    /* ── Smartswitch logic ── */
-    if (lastTemp < 15.0) {  // Hard-coded threshold for clarity
-      setPlugState(false);
-    } else if (lastTemp >= PELTIER_ON_TEMP) {
-      setPlugState(true);
-    }
 
     /* ── Alert logic ── */
     bool out = (lastTemp < TEMP_LOW_THRESHOLD || lastTemp > TEMP_HIGH_THRESHOLD);
