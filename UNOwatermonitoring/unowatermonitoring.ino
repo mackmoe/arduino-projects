@@ -1,59 +1,52 @@
 #include <SPI.h>
 
-// Water flow sensor connection
-const int flowSensorPin = 2;  // Digital pin for water flow sensor
+const int flowSensorPin = 2;
 volatile int pulseCount = 0;
 
-
-// Variables for flow calculation
-float calibrationFactor = 4.5;  // Calibration factor for the sensor (Adjust as needed)
+float calibrationFactor = 7.5;       // For flow rate in L/min
+float pulsesPerLiter = 450.0;        // For total liters
 float flowRate = 0;
 float totalLiters = 0;
+
 unsigned long previousMillis = 0;
-const unsigned long interval = 3600000; // 1 hour in milliseconds
+const unsigned long interval = 1000; // 1 second
+unsigned long pulsesPrevious = 0;
 
-
-// Interrupt Service Routine for counting pulses
 void pulseCounter() {
   pulseCount++;
 }
 
 void setup() {
-  // Start Serial communication
   Serial.begin(9600);
-  
-  // Setup flow sensor input and attach interrupt
   pinMode(flowSensorPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(flowSensorPin), pulseCounter, RISING);
-  
-  Serial.println("Time (hours), Flow Rate (Gal/min), Total Volume (Gallons)");
 }
 
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Calculate flow rate every hour
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
-    
-    // Disable the interrupt while calculating
+
     detachInterrupt(digitalPinToInterrupt(flowSensorPin));
-    
-    // Calculate the flow rate in L/min
-    flowRate = ((float)pulseCount / calibrationFactor) / 60;
-    totalLiters += flowRate;
-    
-    // Send data to the Serial port
-    Serial.print(currentMillis / 3600000); // Time in hours
-    Serial.print(", ");
-    Serial.print(flowRate);
-    Serial.print(", ");
-    Serial.println(totalLiters);
-    
-    // Reset pulse count
-    pulseCount = 0;
-    
-    // Re-enable the interrupt
+
+    float pulsesThisPeriod = pulseCount - pulsesPrevious;
+
+    // L/min = (pulses/sec ÷ calibrationFactor) × 60
+    flowRate = (pulsesThisPeriod / calibrationFactor) * 60.0;
+
+    // Total liters = (pulses ÷ pulsesPerLiter)
+    float litersThisPeriod = pulsesThisPeriod / pulsesPerLiter;
+    totalLiters += litersThisPeriod;
+
+    Serial.print("{\"source\":\"arduino-uno-ro\",");
+    Serial.print("\"flow_rate\":");
+    Serial.print(flowRate, 2);
+    Serial.print(",\"total_liters\":");
+    Serial.print(totalLiters, 3);
+    Serial.println("}");
+
+    pulsesPrevious = pulseCount;
     attachInterrupt(digitalPinToInterrupt(flowSensorPin), pulseCounter, RISING);
   }
 }
