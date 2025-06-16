@@ -24,8 +24,7 @@
 #define IFTTT_HOST        "maker.ifttt.com"
 #define IFTTT_PORT        443
 
-constexpr uint32_t SAMPLE_INTERVAL_MS = 10UL * 1000UL;     // 10 s
-constexpr uint32_t LOG_INTERVAL_MS     = 60UL * 1000UL;   // 1 min (reserved)
+constexpr uint32_t SAMPLE_INTERVAL_MS = 5UL * 1000UL;     // 5 s
 constexpr uint32_t SCROLL_INTERVAL_MS = 5UL  * 1000UL;     // 5 s
 constexpr uint32_t ALERT_COOLDOWN_MS  = 5UL * 60UL * 1000UL; // 5 m
 constexpr uint32_t OUT_OF_RANGE_MS    = 60UL * 1000UL;     // 60 s
